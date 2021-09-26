@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <chrono>
+#include <cstring>
 
 class Matrix {
 public:
@@ -32,6 +33,15 @@ private:
     std::vector<int> values_;
     int size_;
 };
+
+std::istream &operator>>(std::istream &in, Matrix &matrix) {
+    for (int i = 0; i < matrix.size(); ++i) {
+        for (int j = 0; j < matrix.size(); ++j) {
+            in >> matrix[matrix.Index(i, j)];
+        }
+    }
+    return in;
+}
 
 std::ostream &operator<<(std::ostream &out, const Matrix &matrix) {
     for (int i = 0; i < matrix.size(); ++i) {
@@ -95,15 +105,44 @@ Matrix BlockMultiplication(const Matrix &A, const Matrix &B, int block_size, boo
 
 
 int main(int argc, char *argv[]) {
-    int size = 10;
-    Matrix A(std::vector<int>(size * size, 1));
-    Matrix B(std::vector<int>(size * size, 1));
-    auto start = std::chrono::steady_clock::now();
-    std::cout << BlockMultiplication(A, B, 1, true, false);
-    auto mid = std::chrono::steady_clock::now();
-    std::cout << BlockMultiplication(A, B, 1, false, true);
-    auto end = std::chrono::steady_clock::now();
-    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(mid - start).count() << " "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end - mid).count();
+    int matrix_size = 1;
+    bool parallelize_inner = false, parallelize_outer = false;
+    bool use_block = false;
+    int block_size = 1;
+    std::vector<std::string> options = {"-i", "-o", "-s", "-b"};
+    for (int i = 1; i < argc; ++i) {
+        for (auto &option : options) {
+            if (strcmp(option.c_str(), argv[i]) == 0) {
+                if (option == "-s") {
+                    if (i + 1 == argc) {
+                        throw std::runtime_error("You must specify matrix matrix_size after -s");
+                    } else {
+                        matrix_size = std::stoi(argv[i + 1]);
+                    }
+                } else if (option == "-i") {
+                    parallelize_inner = true;
+                } else if (option == "-o") {
+                    parallelize_outer = true;
+                } else if (option == "-b") {
+                    use_block = true;
+                    if (i + 1 == argc) {
+                        throw std::runtime_error("You must specify block matrix_size after -b");
+                    } else {
+                        block_size = std::stoi(argv[i + 1]);
+                    }
+                }
+            }
+        }
+    }
+    Matrix A(std::vector<int>(matrix_size * matrix_size, 0));
+    Matrix B(std::vector<int>(matrix_size * matrix_size, 0));
+    std::cin >> A >> B;
+    if (!use_block) {
+        Matrix C = NonBlockMultiplication(A, B, parallelize_outer, parallelize_inner);
+        std::cout << C;
+    } else {
+        Matrix C = BlockMultiplication(A, B, block_size, parallelize_outer, parallelize_inner);
+        std::cout << C;
+    }
     return 0;
 }
